@@ -63,8 +63,8 @@ could be evenly split into patches. Given the importance of context in identifyi
 I used larger, overlapping patches for the validation and test sets, in a process that is described
 in more detail below.
 
-{:class="image-pad"}
-![Patches](/assets/images/semseg/inria-patches.png){:style="max-width: 60%"}  
+{:class="image-pad half-width"}
+![Patches](/assets/images/semseg/inria-patches.png)  
 *Patches from one of the tiles in the Inria dataset. Notice the reflection padding in the
 edge patches.*
 
@@ -101,3 +101,103 @@ $$ 1 - \frac{2\sum_{pixels} y_{true} y_{pred}}{\sum_{pixels} y_{true}^2 + \sum_{
 
 {:style="text-align: center"}
 *Calculation of soft dice loss. The scoring is repeated over all classes and averaged.*
+
+## Validation and Test
+
+Given the importance of surrounding context in identifying building pixels I used a patch size of
+1024 by 1024 for the validation and test sets, with 50% overlap between each of the patches. The
+overlap ensures that each pixel in the test tiles is contained in a patch with at least 25% of the
+patch size of context in each direction (except for pixels near the tile edges). To produce a
+prediction map for the tile, the predictions for all of the patches were stitched together and a
+weighted combination was taken of overlapping pixels with pixels near the patch edges downweighted.
+
+I took this idea from the leading solution on the Inria leaderboard by Chatterjee and Poullis, but
+rather than downweighting pixels based on the distance to the nearest edge as they suggest, I went
+with a slightly different approach. Intuitively it seems like there is some relevant context area
+around each pixel, and that the weight given to a pixel should be proportional to the ratio of its
+available context in the patch to the context area. In practice this downweights pixels in the
+corner of each patch more than those along the center of an edge. In my implementation I chose to
+specify this context area as a percentage of the overall patch area and found empirically that using
+a value of 80% (i.e. start to downweight pixels with less than 80% of the entire patch area in
+context) gave the best performance over the validation set.
+
+{:class="image-pad half-width"}
+![Test patch weighting](/assets/images/semseg/patch-weighting.png)  
+*Given a context area, here drawn with a dotted line, centered around each pixel, the pixel weight
+is the proportion of that area contained in the patch. The size of the context area is specified as
+a proportion of the patch size, in this example it is 50%*
+
+Finally, to assign a predicted class to each pixel we have to apply a threshold to the score output
+by the model. Here I used Scikit-learn to produce an ROC curve using all pixels in the validation
+set for a range of thresholds, and derived the accuracy and IoU metrics at those thresholds using
+the true and false positive rates as well as the counts of positive (building) and negative (not
+building) samples. I chose the threshold that gave the highest IoU over the validation set.
+
+```python
+import sklearn.metrics as skm
+
+def acc_iou_curves(y_true, y_score):
+    fpr, tpr, thresholds = skm.roc_curve(y_true, y_score)
+    num_pos = (y_true == 1).sum().item()
+    num_neg = len(y_true) - num_pos
+    
+    fp = fpr * num_neg
+    tp = tpr * num_pos
+    fn = (1 - tpr) * num_pos
+    tn = (1 - fpr) * num_neg
+    
+    acc = (tp + tn) / (tp + tn + fp + fn)
+    iou = tp / (tp + fp + fn)
+    return acc, iou, thresholds
+```
+
+{:style="text-align: center"}
+*Using an ROC curve to identify the optimal threshold over our validation metrics.*
+
+## Model Improvements
+
+Fastai includes an implementation of the U-Net architecture for semantic segmentation with a handful
+of optimizations and smart defaults. After getting to know the dataset better and applying the
+techniques above to optimize the validation performance, I wanted to see if I could improve on the
+default U-Net architecture for the Inria dataset. The constraints that I gave myself, in the spirit
+of the Fast.ai philosophy, were that I wanted to use a pretrained encoder and avoid distributed
+training with expensive hardware (I ran all experiments on GCP with a single Nvidia Tesla T4 GPU).
+
+{:class="image-pad"}
+![U-Net architecture](/assets/images/semseg/unet.png)
+*U-Net architecture from the original paper by Ronneberger, Fischer, and Brox.*
+
+The leading Inria paper by Chatterjee and Poullis describes a U-Net like model architecture
+combining ideas from other successful CNN architectures: dense blocks and squeeze and excitation
+(SE) modules. SE modules were introduced in a recent paper by Hu et al. for image classification and
+allow the network to model the interdependencies between channels of convolutional features using
+spacially global information from each channel. The modules output a scalar feature for each channel
+which is used to reweight the feature maps of the block to which they are attached.
+
+{:class="image-pad"}
+![Squeeze and excitation module](/assets/images/semseg/se-module.png)
+*Schema of the squeeze and excitation (SE) module compared to a regular ResNet module, as proposed
+by Hu et al.*
+
+Although I was unable to find a pretrained encoder using the exact same architecture described by
+Chatterjee and Poullis, I did find, in a helpful repo of PyTorch image models, a pretrained
+SE-ResNet ImageNet classifier, as proposed in the original SE paper, along with an implementation
+for SE modules. All that remained was to add the SE modules to the decoding path. Doing so with the
+fastai library required writing a custom model which borrowed heavily from the built-in U-Net
+implementation but allowed me to attach SE modules to the output of each block. Although this was
+only a small modification to the network architecture, there were a few details to take care of to
+ensure compatibility with the fastai library including: wiring up the cross connections from the
+encoding to decoding path using PyTorch hooks, ensuring that the "head" or last layer of the
+pretrained classifier was properly detached to create the encoding path, and ensuring that the
+layers of the final model were properly grouped to behave reasonably with fastai's freezing and
+unfreezing behavior and differential learning rates.
+
+Adding the SE modules gave me a nice performance boost on the validation set, validating the
+effectiveness that small architectural tweaks can have even without adding a large number of
+parameters to the model. I also experimented with a DenseNet encoder (without SE modules) and dense
+block decoder (both with and without SE modules), but found that the SE-ResNet based architecture
+performed the best. I trained the model frozen (i.e. only updating the decoder weights) for 6 epochs
+and, after reducing the learning rate, unfrozen for another 10. Each epoch took approximately 50
+minutes to train on the Tesla T4. I submitted my test set results to the competition and scored an
+overall IoU of 74.84, which put me in the top 25% of the leaderboard. Not bad for less than 14 hours
+of training!

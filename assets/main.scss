@@ -53,6 +53,10 @@ $on-laptop:        800px;
   text-align: center;
 }
 
+.half-width img {
+  max-width: 50%;
+}
+
 .image-pad .MathJax {
   font-size: 3em;
   padding: 20px;
