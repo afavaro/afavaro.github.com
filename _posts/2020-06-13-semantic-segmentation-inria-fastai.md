@@ -165,7 +165,8 @@ training with expensive hardware (I ran all experiments on GCP with a single Nvi
 
 {:class="image-pad"}
 ![U-Net architecture](/assets/images/semseg/unet.png)
-*U-Net architecture from the original paper by Ronneberger, Fischer, and Brox.*
+*U-Net architecture from the original paper by Ronneberger, Fischer, and Brox. The left side of the
+model is the encoder, while the right side is the decoder.*
 
 The leading Inria paper by Chatterjee and Poullis describes a U-Net like model architecture
 combining ideas from other successful CNN architectures: dense blocks and squeeze and excitation
@@ -201,3 +202,18 @@ and, after reducing the learning rate, unfrozen for another 10. Each epoch took 
 minutes to train on the Tesla T4. I submitted my test set results to the competition and scored an
 overall IoU of 74.84, which put me in the top 25% of the leaderboard. Not bad for less than 14 hours
 of training!
+
+## Conclusion
+
+Building a semantic segmentation model for satellite imagery was challenging primarily due to the
+size of the input images. After learning how to break the images up and reassemble the model output,
+however, I found that the fastai library makes it easy to get up and running with close to state of
+the art performance on semantic segmentation tasks, by encouraging the use of pretrained ImageNet
+models and providing an opinionated workflow for model development. Modifying the library's defaults
+was a little challenging at times (for example using a different image size for the validation and
+test sets and needing to rewrite most of the U-Net implementation), but, especially as somebody
+relatively new to deep learning, it was useful to have a baseline that I knew was going to give me
+good performance and to be able to iterate from there. This project gave me the opportunity and
+motivation to discover the details required to improve performance on this dataset as necessary, and
+I would highly recommend using personal projects to deepen your own understanding of the Fast.ai
+material.
