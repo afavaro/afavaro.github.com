@@ -4,13 +4,14 @@ title:  "Semantic Segmentation for Satellite Imagery with fastai"
 date:   2020-06-13 17:43:42 +0200
 ---
 
+
 Semantic segmentation is a classification task in computer vision that assigns a class to each pixel
 of an image, effectively segmenting the image into regions of interest. For example, the
-{% reflink camvid %}Cambridge-driving Labeled Video Database{% endreflink %} (CamVid) is a 
-dataset that includes a collection of videos recorded from the perspective of a driving car, with
-over 700 frames that have been labeled to assign one of 32 semantic classes (e.g. pedestrian,
-bicyclist, road, etc.) to each pixel. This dataset can be used to train a model to segment new
-scenes into those same classes.
+<a name="camvid">[Cambridge-driving Labeled Video Database](http://mi.eng.cam.ac.uk/research/projects/VideoRec/CamVid/)</a>
+(CamVid) is a dataset that includes a collection of videos recorded from the perspective of a
+driving car, with over 700 frames that have been labeled to assign one of 32 semantic classes (e.g.
+pedestrian, bicyclist, road, etc.) to each pixel. This dataset can be used to train a model to
+segment new scenes into those same classes.
 
 {:class="image-pad"}
 ![Example labeled frames from the CamVid dataset](/assets/images/semseg/camvid.png)
@@ -225,6 +226,9 @@ iterate from there. This project gave me the opportunity and motivation to disco
 necessary the details required to improve performance on this particular problem, and I would
 highly recommend using personal projects to deepen your own understanding of the Fast.ai
 material.
+
+All of the code for this project can be found in a
+[notebook](https://github.com/afavaro/notebooks/blob/master/inria.ipynb) on my GitHub.
 
 ## References
 
